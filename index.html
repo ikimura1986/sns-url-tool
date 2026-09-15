@@ -28,8 +28,19 @@
     }
 
     h1 {
-      margin: 0 0 18px;
+      margin: 0 0 8px;
       font-size: 22px;
+    }
+
+    .description {
+      margin: 0 0 24px;
+      color: #666;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .field {
+      margin-bottom: 18px;
     }
 
     .label {
@@ -37,6 +48,13 @@
       margin-bottom: 7px;
       font-size: 14px;
       font-weight: bold;
+    }
+
+    .note {
+      display: block;
+      margin-top: 6px;
+      color: #777;
+      font-size: 12px;
     }
 
     input,
@@ -53,11 +71,16 @@
       padding: 14px;
     }
 
+    input:focus,
+    textarea:focus {
+      outline: none;
+      border-color: #555;
+    }
+
     textarea {
-      height: 220px;
-      margin-top: 16px;
+      height: 180px;
       padding: 14px;
-      line-height: 1.7;
+      line-height: 1.6;
       resize: vertical;
     }
 
@@ -99,6 +122,14 @@
     .error {
       color: #d22;
     }
+
+    .threads-area {
+      transition: opacity 0.2s;
+    }
+
+    .threads-area.disabled {
+      opacity: 0.4;
+    }
   </style>
 </head>
 
@@ -108,24 +139,72 @@
 
   <h1>SNS URL整形ツール</h1>
 
-  <label class="label" for="postUrl">
-    Threads / X / TikTok の投稿URL
-  </label>
+  <p class="description">
+    Xは投稿URLだけでOK。<br>
+    Threadsは投稿URLと投稿者URLの2つを入力してください。
+  </p>
 
-  <input
-    type="url"
-    id="postUrl"
-    placeholder="投稿URLを貼り付け"
-    autocomplete="off"
-    autocapitalize="none"
-    spellcheck="false"
-  >
 
-  <textarea
-    id="output"
-    readonly
-    placeholder="投稿URLを貼り付けると、ここに自動生成されます"
-  ></textarea>
+  <!-- 投稿URL -->
+
+  <div class="field">
+
+    <label class="label" for="postUrl">
+      投稿URL
+    </label>
+
+    <input
+      type="url"
+      id="postUrl"
+      placeholder="Threads / X の投稿URLを貼り付け"
+      autocomplete="off"
+      autocapitalize="none"
+      spellcheck="false"
+    >
+
+  </div>
+
+
+  <!-- Threads投稿者URL -->
+
+  <div class="field threads-area" id="threadsArea">
+
+    <label class="label" for="threadsProfileUrl">
+      Threads 投稿者URL
+    </label>
+
+    <input
+      type="url"
+      id="threadsProfileUrl"
+      placeholder="https://www.threads.com/@ユーザー名"
+      autocomplete="off"
+      autocapitalize="none"
+      spellcheck="false"
+    >
+
+    <span class="note">
+      ※Threadsの場合のみ入力してください
+    </span>
+
+  </div>
+
+
+  <!-- 出力 -->
+
+  <div class="field">
+
+    <label class="label" for="output">
+      出力
+    </label>
+
+    <textarea
+      id="output"
+      readonly
+      placeholder="必要なURLを入力すると自動生成されます"
+    ></textarea>
+
+  </div>
+
 
   <button id="copyButton">
     コピー
@@ -139,22 +218,42 @@
 
 </div>
 
+
 <script>
 
-const postUrl = document.getElementById("postUrl");
-const output = document.getElementById("output");
-const copyButton = document.getElementById("copyButton");
-const clearButton = document.getElementById("clearButton");
-const message = document.getElementById("message");
+const postUrl =
+  document.getElementById("postUrl");
+
+const threadsProfileUrl =
+  document.getElementById("threadsProfileUrl");
+
+const threadsArea =
+  document.getElementById("threadsArea");
+
+const output =
+  document.getElementById("output");
+
+const copyButton =
+  document.getElementById("copyButton");
+
+const clearButton =
+  document.getElementById("clearButton");
+
+const message =
+  document.getElementById("message");
 
 
-/* URLの ?以降・#以降を削除 */
+/* ========================================
+   URLクリーンアップ
+   ?以降、#以降、末尾の/を削除
+======================================== */
 
 function cleanUrl(url) {
 
   try {
 
-    const parsed = new URL(url.trim());
+    const parsed =
+      new URL(url.trim());
 
     parsed.search = "";
     parsed.hash = "";
@@ -173,16 +272,21 @@ function cleanUrl(url) {
 }
 
 
-/* 投稿者プロフィールURLを抽出 */
+/* ========================================
+   SNS判定
+======================================== */
 
-function getProfileUrl(url) {
+function getSNS(url) {
 
   try {
 
-    const parsed = new URL(url);
+    const parsed =
+      new URL(url);
 
     const hostname =
-      parsed.hostname.toLowerCase().replace(/^www\./, "");
+      parsed.hostname
+        .toLowerCase()
+        .replace(/^www\./, "");
 
 
     /* Threads */
@@ -192,56 +296,19 @@ function getProfileUrl(url) {
       hostname === "threads.net"
     ) {
 
-      const match =
-        parsed.pathname.match(/^\/(@[^/]+)/);
-
-      if (!match) {
-        return "";
-      }
-
-      return "https://www.threads.com/" + match[1];
+      return "threads";
 
     }
 
 
-    /* X / Twitter */
+    /* X */
 
     if (
       hostname === "x.com" ||
       hostname === "twitter.com"
     ) {
 
-      const match =
-        parsed.pathname.match(
-          /^\/([^/]+)\/status\/[^/]+/
-        );
-
-      if (!match) {
-        return "";
-      }
-
-      return "https://x.com/" + match[1];
-
-    }
-
-
-    /* TikTok */
-
-    if (
-      hostname === "tiktok.com" ||
-      hostname === "m.tiktok.com"
-    ) {
-
-      const match =
-        parsed.pathname.match(
-          /^\/(@[^/]+)\/(?:video|photo)\/[^/]+/
-        );
-
-      if (!match) {
-        return "";
-      }
-
-      return "https://www.tiktok.com/" + match[1];
+      return "x";
 
     }
 
@@ -257,61 +324,135 @@ function getProfileUrl(url) {
 }
 
 
-/* テンプレート生成 */
+/* ========================================
+   XプロフィールURL抽出
+======================================== */
 
-function generate() {
+function getXProfileUrl(url) {
 
-  const originalUrl = postUrl.value.trim();
+  try {
 
-  message.textContent = "";
-  message.className = "";
+    const parsed =
+      new URL(url);
 
-  if (!originalUrl) {
+    /*
+      /username/status/123456
+    */
 
-    output.value = "";
-    return;
-
-  }
-
-
-  const cleanedUrl = cleanUrl(originalUrl);
-
-  if (!cleanedUrl) {
-
-    output.value = "";
-
-    message.textContent =
-      "URLを確認してください";
-
-    message.className = "error";
-
-    return;
-
-  }
+    const match =
+      parsed.pathname.match(
+        /^\/([^/]+)\/status\/[^/]+/
+      );
 
 
-  const profileUrl =
-    getProfileUrl(cleanedUrl);
+    if (!match) {
+
+      return "";
+
+    }
 
 
-  if (!profileUrl) {
+    const username =
+      match[1];
 
-    output.value = "";
 
-    message.textContent =
-      "Threads / X / TikTok の投稿URLを確認してください";
+    return "https://x.com/" + username;
 
-    message.className = "error";
+  } catch (e) {
 
-    return;
+    return "";
 
   }
 
+}
 
-  /* 改行なしで出力 */
 
-  output.value =
-    `【ソース1】${cleanedUrl}` +
+/* ========================================
+   ThreadsプロフィールURLを整形
+======================================== */
+
+function getThreadsProfileUrl(url) {
+
+  try {
+
+    const cleaned =
+      cleanUrl(url);
+
+    if (!cleaned) {
+
+      return "";
+
+    }
+
+
+    const parsed =
+      new URL(cleaned);
+
+    const hostname =
+      parsed.hostname
+        .toLowerCase()
+        .replace(/^www\./, "");
+
+
+    if (
+      hostname !== "threads.com" &&
+      hostname !== "threads.net"
+    ) {
+
+      return "";
+
+    }
+
+
+    /*
+      /@username
+      /@username/～
+
+      どちらでもユーザー名だけ取得
+    */
+
+    const match =
+      parsed.pathname.match(
+        /^\/(@[^/]+)/
+      );
+
+
+    if (!match) {
+
+      return "";
+
+    }
+
+
+    return (
+      "https://www.threads.com/" +
+      match[1]
+    );
+
+  } catch (e) {
+
+    return "";
+
+  }
+
+}
+
+
+/* ========================================
+   テンプレート作成
+======================================== */
+
+function createTemplate(
+  cleanedPostUrl,
+  profileUrl
+) {
+
+  /*
+    改行なし・完全1行
+  */
+
+  return (
+    `【ソース1】${cleanedPostUrl}` +
     `【ソース2】` +
     `【ソース3】` +
     `関連URL：${profileUrl}` +
@@ -325,79 +466,346 @@ function generate() {
     `【掲載注意／誘導】 ` +
     `【制作注意】 ` +
     `【許諾注意】許諾文： ` +
-    `参考記事：`;
+    `参考記事：`
+  );
 
 }
 
 
-/* 入力時に自動生成 */
+/* ========================================
+   メイン処理
+======================================== */
 
-postUrl.addEventListener("input", generate);
+function generate() {
 
-postUrl.addEventListener("paste", function() {
-  setTimeout(generate, 0);
-});
+  const originalPostUrl =
+    postUrl.value.trim();
 
 
-/* コピー */
+  message.textContent = "";
+  message.className = "";
 
-copyButton.addEventListener("click", async function() {
 
-  if (!output.value) {
+  /* 投稿URLが空 */
 
-    message.textContent =
-      "先に投稿URLを入力してください";
+  if (!originalPostUrl) {
 
-    message.className = "error";
+    output.value = "";
+
+    threadsArea.classList.remove(
+      "disabled"
+    );
 
     return;
 
   }
 
-  try {
 
-    await navigator.clipboard.writeText(output.value);
+  /* 投稿URLをクリーンアップ */
 
-    message.textContent = "コピーしました！";
-    message.className = "success";
+  const cleanedPostUrl =
+    cleanUrl(originalPostUrl);
 
-  } catch (e) {
 
-    output.removeAttribute("readonly");
+  if (!cleanedPostUrl) {
 
-    output.focus();
-    output.select();
+    output.value = "";
 
-    output.setSelectionRange(
-      0,
-      output.value.length
-    );
+    message.textContent =
+      "投稿URLを確認してください";
 
-    document.execCommand("copy");
+    message.className =
+      "error";
 
-    output.setAttribute("readonly", "");
-
-    message.textContent = "コピーしました！";
-    message.className = "success";
+    return;
 
   }
 
-});
+
+  /* SNS判定 */
+
+  const sns =
+    getSNS(cleanedPostUrl);
 
 
-/* クリア */
+  /* ========================================
+     X
+  ======================================== */
 
-clearButton.addEventListener("click", function() {
+  if (sns === "x") {
 
-  postUrl.value = "";
+    threadsArea.classList.add(
+      "disabled"
+    );
+
+
+    const profileUrl =
+      getXProfileUrl(
+        cleanedPostUrl
+      );
+
+
+    if (!profileUrl) {
+
+      output.value = "";
+
+      message.textContent =
+        "Xの投稿URLを確認してください";
+
+      message.className =
+        "error";
+
+      return;
+
+    }
+
+
+    output.value =
+      createTemplate(
+        cleanedPostUrl,
+        profileUrl
+      );
+
+
+    return;
+
+  }
+
+
+  /* ========================================
+     Threads
+  ======================================== */
+
+  if (sns === "threads") {
+
+    threadsArea.classList.remove(
+      "disabled"
+    );
+
+
+    const originalProfileUrl =
+      threadsProfileUrl.value.trim();
+
+
+    /*
+      投稿者URLがまだ未入力
+    */
+
+    if (!originalProfileUrl) {
+
+      output.value = "";
+
+      message.textContent =
+        "Threadsの投稿者URLを入力してください";
+
+      message.className =
+        "error";
+
+      return;
+
+    }
+
+
+    const profileUrl =
+      getThreadsProfileUrl(
+        originalProfileUrl
+      );
+
+
+    if (!profileUrl) {
+
+      output.value = "";
+
+      message.textContent =
+        "Threadsの投稿者URLを確認してください";
+
+      message.className =
+        "error";
+
+      return;
+
+    }
+
+
+    output.value =
+      createTemplate(
+        cleanedPostUrl,
+        profileUrl
+      );
+
+
+    return;
+
+  }
+
+
+  /* ========================================
+     対象外
+  ======================================== */
+
   output.value = "";
 
-  message.textContent = "";
-  message.className = "";
+  message.textContent =
+    "Threads または X のURLを入力してください";
 
-  postUrl.focus();
+  message.className =
+    "error";
 
-});
+}
+
+
+/* ========================================
+   入力時に自動生成
+======================================== */
+
+postUrl.addEventListener(
+  "input",
+  generate
+);
+
+threadsProfileUrl.addEventListener(
+  "input",
+  generate
+);
+
+
+/* スマホ貼り付け対策 */
+
+postUrl.addEventListener(
+  "paste",
+  function() {
+
+    setTimeout(
+      generate,
+      0
+    );
+
+  }
+);
+
+
+threadsProfileUrl.addEventListener(
+  "paste",
+  function() {
+
+    setTimeout(
+      generate,
+      0
+    );
+
+  }
+);
+
+
+/* ========================================
+   コピー
+======================================== */
+
+copyButton.addEventListener(
+  "click",
+  async function() {
+
+
+    if (!output.value) {
+
+      message.textContent =
+        "必要なURLを入力してください";
+
+      message.className =
+        "error";
+
+      return;
+
+    }
+
+
+    try {
+
+      await navigator.clipboard.writeText(
+        output.value
+      );
+
+
+      message.textContent =
+        "コピーしました！";
+
+      message.className =
+        "success";
+
+
+    } catch (e) {
+
+
+      /*
+        iPhone等の
+        Clipboard API非対応時
+      */
+
+      output.removeAttribute(
+        "readonly"
+      );
+
+      output.focus();
+
+      output.select();
+
+      output.setSelectionRange(
+        0,
+        output.value.length
+      );
+
+
+      document.execCommand(
+        "copy"
+      );
+
+
+      output.setAttribute(
+        "readonly",
+        ""
+      );
+
+
+      message.textContent =
+        "コピーしました！";
+
+      message.className =
+        "success";
+
+    }
+
+  }
+);
+
+
+/* ========================================
+   クリア
+======================================== */
+
+clearButton.addEventListener(
+  "click",
+  function() {
+
+
+    postUrl.value = "";
+
+    threadsProfileUrl.value = "";
+
+    output.value = "";
+
+    message.textContent = "";
+
+    message.className = "";
+
+    threadsArea.classList.remove(
+      "disabled"
+    );
+
+
+    postUrl.focus();
+
+  }
+);
 
 </script>
 
